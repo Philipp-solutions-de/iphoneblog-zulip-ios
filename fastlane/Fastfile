@@ -35,9 +35,10 @@ end
 
 platform :ios do
   # Registers the app's and the notification extension's bundle ids and turns on
-  # Push Notifications and App Groups, through the App Store Connect API.
-  # Safe to run again: it skips what exists. The app group itself and the profiles
-  # are left to Xcode's automatic signing in testflight_upload.
+  # Push Notifications and App Groups, through the App Store Connect API, and sets the
+  # record's name. Safe to run again: it skips what exists. The app group itself is
+  # registered and tied to the ids by hand (the API has no resource for it); the
+  # profiles come in the archive lane.
   lane :register_ids do
     bundle_id = app_env.fetch("BUNDLE_ID")
     name = app_env.fetch("APP_NAME")
@@ -65,6 +66,26 @@ platform :ios do
             bid.create_capability(cap)
             UI.success("#{identifier}: #{cap} turned on")
           end
+        end
+      end
+    end
+
+    # The App Store Connect record's name, from APP_STORE_NAME. Apple lets the name change
+    # until the first release; it must be unique in the App Store.
+    store_name = app_env.fetch("APP_STORE_NAME")
+    with_api_key do
+      app = Spaceship::ConnectAPI::App.find(bundle_id)
+      if app.nil?
+        UI.important("no app record for #{bundle_id} yet; create it by hand (docs/apple-setup.md)")
+        next
+      end
+      info = app.fetch_edit_app_info || app.fetch_live_app_info
+      info.get_app_info_localizations.each do |loc|
+        if loc.name == store_name
+          UI.message("record name (#{loc.locale}): #{loc.name}")
+        else
+          loc.update(attributes: { name: store_name })
+          UI.success("record name (#{loc.locale}): #{loc.name} -> #{store_name}")
         end
       end
     end

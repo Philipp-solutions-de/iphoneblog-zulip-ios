@@ -13,7 +13,7 @@ happen once and serve both apps.
 | Bundle id (app) | `de.iphoneblog.zulip.preview`: Push Notifications, App Groups |
 | Bundle id (notification extension) | `de.iphoneblog.zulip.preview.NotificationService`: App Groups |
 | App group | `group.de.iphoneblog.zulip.preview` |
-| App record name | `iphoneblog Z Preview` (name under the icon: `iphoneblog Z`) |
+| App record name | `iphoneblog Zulip Preview` (set by `Apple setup`; name under the icon: `iphoneblog Zulip`) |
 | SKU | `iphoneblog-zulip-preview` |
 | APNs topic | `de.iphoneblog.zulip.preview`, sent to the Zulip server as the app id |
 | Repository | `Philipp-solutions-de/iphoneblog-zulip-ios` |

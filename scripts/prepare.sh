@@ -86,7 +86,8 @@ say "Info.plist: name, no URL scheme, permission texts"
 pb=/usr/libexec/PlistBuddy
 plist="$up/ios/Runner/Info.plist"
 $pb -c "Set :CFBundleDisplayName $APP_NAME" "$plist"
-$pb -c "Set :CFBundleName $APP_NAME" "$plist"
+# CFBundleName is the short name: Apple asks for at most 15 characters.
+$pb -c "Set :CFBundleName ${APP_NAME:0:15}" "$plist"
 $pb -c "Delete :CFBundleURLTypes" "$plist"
 $pb -c "Set :NSCameraUsageDescription Take photos and send them in $APP_NAME." "$plist"
 $pb -c "Set :NSPhotoLibraryUsageDescription Choose photos from your library and send them in $APP_NAME." "$plist"

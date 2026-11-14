@@ -1,4 +1,4 @@
-# iphoneblog Z
+# iphoneblog Zulip
 
 The iPhone app for the iphoneblog.de chat on Zulip. It is
 [zulip-flutter](https://github.com/zulip/zulip-flutter), the official Zulip app, with a
@@ -8,7 +8,7 @@ small set of changes kept apart from upstream. It talks to one server,
 This app is not made or endorsed by Kandra Labs, the company behind Zulip. It carries no
 Zulip logo or app icon.
 
-"iphoneblog Z" is the name while Thorsten, Alex and Philip compare it with the Matrix app.
+"iphoneblog Zulip" is the name while Thorsten, Alex and Philip compare it with the Matrix app.
 At launch the server becomes `chat.iphoneblog.de` (`SERVER_URL` in `config/app.env`).
 
 ## How a new upstream release becomes an app
@@ -68,7 +68,7 @@ It needs Xcode and CocoaPods, and installs Flutter into `~/flutter`.
 | Where | What | Why |
 |---|---|---|
 | `config/app.env` | name, bundle id, app group, server, blog colour (team id: variable `APPLE_TEAM_ID`) | the one place to change for Alex's account |
-| `brand/icon-1024.png` | the blog's touch icon with a "Z" badge, on white | no Zulip marks; tells it apart from the Matrix app |
+| `brand/icon-1024.png` | the blog's touch icon, on white | no Zulip marks |
 | `patches/0001-brand-colour.patch` | the app's seed colour becomes the blog's teal `#149791` | blog colours |
 | `patches/0002-start-on-sign-in.patch` | with no account, the app opens on sign-in, not the account list | one less screen |
 | `patches/0003-preset-server-and-sign-in-sheet.patch` | the server is preset and the URL field hidden; on iOS, web sign-in runs in an `ASWebAuthenticationSession` | sign-in goes straight to the iphoneblog.de button; see "Sign-in" |
