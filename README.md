@@ -45,24 +45,32 @@ It needs Xcode and CocoaPods.
 
 | Where | What | Why |
 |---|---|---|
-| `config/app.env` | name, bundle id, team id, app group, server, relay key, blog colour | the one place to change for Alex's account |
+| `config/app.env` | name, bundle id, team id, app group, server, blog colour | the one place to change for Alex's account |
 | `brand/icon-1024.png` | the blog's touch icon with a "Z" badge, on white | no Zulip marks; tells it apart from the Matrix app |
 | `patches/0001-brand-colour.patch` | the app's seed colour becomes the blog's teal `#149791` | blog colours |
 | `patches/0002-start-on-sign-in.patch` | with no account, the app opens on sign-in, not the account list | one less screen |
 | `patches/0003-preset-server-and-sign-in-sheet.patch` | the server is preset and the URL field hidden; on iOS, web sign-in runs in an `ASWebAuthenticationSession` | sign-in goes straight to the iphoneblog.de button; see "Sign-in" |
+| `patches/0004-legacy-push-registration.patch` | push registers through the legacy path (`add-apns-token`), never the encrypted one | a stock server sends to Apple with our key; see "Push" |
 | `overlay/packages/iphoneblog_native` | a small Swift plugin: notification permission, APNs token, sign-in sheet | talks to Apple only |
 | `overlay/packages/firebase_core`, `firebase_messaging` | stand-ins with the same Dart names, no Firebase code | upstream's Dart compiles unchanged, and no Google service sees an install |
-| `scripts/prepare.sh` | push token encrypted to our relay's public key; bundle id, team, app group, display name, permission texts, removes the `zulip://` URL scheme, icon, launch colour | plain rewrites need no patch |
+| `scripts/prepare.sh` | bundle id, team, app group, display name, permission texts, removes the `zulip://` URL scheme, icon, launch colour | plain rewrites need no patch |
 
-### Push notifications: our relay, no Google
+### Push notifications: straight from our server to Apple, no Google
 
-On Zulip 12 and later the app registers for push through `POST /mobile_push/register`. It
-encrypts its APNs token to the public key of a push relay; upstream hard-codes Zulip's
-(`bouncerPublicKey` in `lib/model/push_device.dart`). Our server runs the relay code itself
-(zilencer) with our own key pair and sends to Apple with Alex's APNs key. `prepare.sh`
-swaps that one line for `RELAY_PUBLIC_KEY` from `config/app.env`. Until the server has its
-key, the value is a marked placeholder; push registration then fails on the server, and
-the TestFlight lane refuses to run.
+Zulip 12 and later offer an encrypted push registration (`POST /mobile_push/register`). It
+encrypts the device's token to the public key of a push relay; upstream's app hard-codes
+the key of Zulip's own relay, and a server answers that endpoint only through such a relay.
+We run no relay. `patches/0004-legacy-push-registration.patch` makes the app always take
+the older path, `POST /users/me/apns_device_token`, with the bundle id as app id. The stock
+server then sends to Apple itself with Alex's APNs key (`APNS_TOKEN_KEY_FILE`,
+`APNS_TOKEN_KEY_ID`, `APNS_TEAM_ID`, `APNS_SANDBOX=False`).
+
+What this costs:
+- Notification payloads reach Apple readable (TLS only), not end-to-end encrypted. The
+  realm setting `require_e2ee_push_notifications` must stay off.
+- **The path has an end date.** Upstream marks it `TODO(server-12)` and deletes it once it
+  drops support for Zulip 11, expected around 2027. Then this patch stops applying, the
+  weekly build fails, and push needs a relay of our own or Zulip's.
 
 Upstream uses Google's `firebase_messaging` on iOS only to ask for permission and to read
 the APNs token. `pubspec.yaml` overrides both Firebase packages with the stand-ins in
@@ -99,8 +107,7 @@ Off until Alex's company developer account exists. Then:
    and create an API key with the role App Manager.
 3. In this repository's settings: secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (the
    text of the `.p8` file), and the variable `TESTFLIGHT_ENABLED` = `true`.
-4. For server push: an APNs key (`.p8`) from the same account goes to the Zulip server,
-   and `RELAY_PUBLIC_KEY` in `config/app.env` must hold the relay's real public key.
+4. For server push: an APNs key (`.p8`) from the same account goes to the Zulip server.
 
 The `testflight` job then signs with Xcode's cloud-managed signing and uploads every weekly
 build. `fastlane/Fastfile` holds the lane.

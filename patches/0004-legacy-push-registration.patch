@@ -1,0 +1,15 @@
+diff --git a/lib/model/push_device.dart b/lib/model/push_device.dart
+index a20ee9de..92d4e246 100644
+--- a/lib/model/push_device.dart
++++ b/lib/model/push_device.dart
+@@ -60,7 +60,9 @@ class PushDeviceManager extends PerAccountStoreBase {
+   /// This is an entry in [devices].
+   ClientDevice? get thisDevice => _devices[account.deviceId];
+ 
+-  bool get _e2eeAvailable => zulipFeatureLevel >= 468; // TODO(server-12)
++  // iphoneblog: always the legacy path (add-apns-token). Our stock server sends to
++  // Apple with our own key; the E2EE path needs a relay we do not run.
++  bool get _e2eeAvailable => false;
+ 
+   void handleDeviceEvent(DeviceEvent event) {
+     switch (event) {
