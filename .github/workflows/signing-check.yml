@@ -1,0 +1,50 @@
+name: Signing check
+
+# Run by hand on main before TESTFLIGHT_ENABLED goes on: builds the pinned release,
+# signs and exports the App Store .ipa with the team's distribution certificate and
+# App Store profiles, without uploading. Same steps as build.yml's testflight job.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  signed-build:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 90
+    environment: apple
+    env:
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+      DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      BUNDLE_GEMFILE: fastlane/Gemfile
+      BUNDLE_FROZEN: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch the pinned upstream release
+        run: scripts/fetch-upstream.sh upstream >> "$GITHUB_ENV"
+      - name: Install Flutter
+        run: scripts/install-flutter.sh
+      - name: Apply iphoneblog changes
+        run: scripts/prepare.sh upstream
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      - name: Build, sign and export (no upload)
+        run: |
+          (cd upstream && flutter build ios --config-only --release --build-number="$BUILD_NUMBER")
+          bundle exec fastlane ios signed_build

@@ -43,8 +43,19 @@ gh secret set ASC_ISSUER_ID --env apple --repo Philipp-solutions-de/iphoneblog-z
 base64 -i ~/Downloads/AuthKey_KEYID.p8 | gh secret set ASC_KEY_P8_BASE64 --env apple --repo Philipp-solutions-de/iphoneblog-zulip-ios
 ```
 
-`gh` asks for the team id, key id and issuer id at a hidden prompt; the key comes from its
-file. No value goes into a chat or a log.
+The team's one Apple Distribution certificate, the same `.p12` and password as for the
+Matrix app (the combined page says how it is made):
+
+```bash
+base64 -i ~/Downloads/distribution.p12 | gh secret set DIST_CERT_P12_BASE64 --env apple --repo Philipp-solutions-de/iphoneblog-zulip-ios
+```
+
+```bash
+gh secret set DIST_CERT_PASSWORD --env apple --repo Philipp-solutions-de/iphoneblog-zulip-ios
+```
+
+`gh` asks for the team id, key id, issuer id and certificate password at a hidden prompt;
+the files are read directly. No value goes into a chat or a log.
 
 ## Register the bundle ids
 
@@ -64,6 +75,16 @@ The APNs key is the one Team Scoped key from the combined page; the Zulip server
 with the topic above. The combined page's command block writes the same `.p8` into infra's
 secrets twice: `zulip_apns_key`, `zulip_apns_key_id`, `zulip_apns_team_id` for the Zulip
 server, and the `sygnal_apns_*` names for Matrix.
+
+## Signing check
+
+Builds the pinned release, signs it with the distribution certificate and App Store
+profiles (fetched or created through the API key), exports the `.ipa`, uploads nothing.
+It must be green before TestFlight goes on.
+
+```bash
+gh workflow run signing-check.yml --repo Philipp-solutions-de/iphoneblog-zulip-ios
+```
 
 ## Switch TestFlight on
 

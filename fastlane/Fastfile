@@ -1,18 +1,16 @@
 # TestFlight upload. Runs only when the repository variable TESTFLIGHT_ENABLED is
 # "true". docs/apple-setup.md lists what must exist first.
 #
-# Repository variable: APPLE_TEAM_ID       the 10-character team id
-# Repository secrets:  ASC_KEY_ID, ASC_ISSUER_ID   the App Store Connect API key's id and issuer
-#                      ASC_KEY_P8_BASE64           the .p8 file, base64-encoded
-# (the same names as Philipp-solutions-de/iphoneblog-matrix-ios)
-#
-# Signing is Xcode's automatic signing, authorised by the API key: Xcode registers the
-# two bundle ids and the app group, turns on Push Notifications and App Groups, makes
-# the profiles and uses a cloud-managed distribution certificate. No certificate or
-# profile lives in this repository.
+# Repository variable APPLE_TEAM_ID: the 10-character team id.
+# Secrets of the environment "apple" (the same names as iphoneblog-matrix-ios):
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8_BASE64   the App Store Connect API key
+#   DIST_CERT_P12_BASE64, DIST_CERT_PASSWORD       the team's one Apple Distribution
+#                                                  certificate, shared with the Matrix app Profiles come through the API
+# key at build time. No certificate or profile lives in this repository.
 
 require "base64"
 require "tmpdir"
+require "securerandom"
 
 default_platform(:ios)
 
@@ -72,33 +70,75 @@ platform :ios do
     end
   end
 
-  lane :testflight_upload do
+  # Builds, signs and exports the App Store .ipa from the prepared upstream/ checkout.
+  # Signing is manual, as in the Matrix app: the team's one Apple Distribution
+  # certificate comes from the environment secrets DIST_CERT_P12_BASE64 and
+  # DIST_CERT_PASSWORD into a throwaway keychain, and sigh fetches (or creates) the App
+  # Store profiles through the API key. No xcodebuild login, no device, no Apple ID.
+  # Only the two app targets are touched; Flutter's and the pods' targets keep theirs.
+  private_lane :archive do |options|
+    api_key = options.fetch(:api_key)
     team_id = ENV.fetch("APPLE_TEAM_ID", "")
     UI.user_error!("repository variable APPLE_TEAM_ID is not set") unless team_id.match?(/\A[A-Z0-9]{10}\z/)
+    bundle_id = app_env.fetch("BUNDLE_ID")
+    ios = File.expand_path("../upstream/ios", __dir__)
 
-    with_api_key do |api_key, key_path|
-      auth = [
-        "-allowProvisioningUpdates",
-        "-authenticationKeyPath #{key_path}",
-        "-authenticationKeyID #{ENV.fetch('ASC_KEY_ID')}",
-        "-authenticationKeyIssuerID #{ENV.fetch('ASC_ISSUER_ID')}",
-      ].join(" ")
+    keychain = File.join(Dir.tmpdir, "iphoneblog-signing.keychain-db")
+    keychain_password = SecureRandom.hex(24)
+    create_keychain(path: keychain, password: keychain_password, default_keychain: false,
+                    unlock: true, timeout: 3600, lock_when_sleeps: false, add_to_search_list: true)
+    p12 = File.join(Dir.tmpdir, "distribution.p12")
+    File.binwrite(p12, Base64.decode64(ENV.fetch("DIST_CERT_P12_BASE64")))
+    File.chmod(0o600, p12)
+    begin
+      import_certificate(certificate_path: p12, certificate_password: ENV.fetch("DIST_CERT_PASSWORD"),
+                         keychain_path: keychain, keychain_password: keychain_password, log_output: false)
+    ensure
+      File.delete(p12) if File.exist?(p12)
+    end
 
-      build_app(
-        workspace: "upstream/ios/Runner.xcworkspace",
-        scheme: "Runner",
-        configuration: "Release",
-        output_directory: "build",
-        xcargs: "#{auth} DEVELOPMENT_TEAM=#{team_id} CODE_SIGN_STYLE=Automatic",
-        export_xcargs: auth,
-        export_team_id: team_id,
-        export_options: {
-          method: "app-store-connect",
-          signingStyle: "automatic",
-          teamID: team_id,
-        },
-      )
+    # App Store builds talk to Apple's production push service.
+    sh("/usr/libexec/PlistBuddy", "-c", "Set :aps-environment production",
+       File.join(ios, "Runner/Runner.entitlements"))
 
+    profiles = {}
+    { "Runner" => bundle_id, "NotificationService" => "#{bundle_id}.NotificationService" }.each do |target, identifier|
+      get_provisioning_profile(api_key: api_key, app_identifier: identifier, team_id: team_id,
+                               output_path: File.expand_path("../build/profiles", __dir__))
+      name = lane_context[SharedValues::SIGH_NAME]
+      profiles[identifier] = name
+      update_code_signing_settings(path: File.join(ios, "Runner.xcodeproj"), targets: [target],
+                                   use_automatic_signing: false, team_id: team_id,
+                                   code_sign_identity: "Apple Distribution",
+                                   profile_name: name, bundle_identifier: identifier)
+    end
+
+    build_app(
+      workspace: File.join(ios, "Runner.xcworkspace"),
+      scheme: "Runner",
+      configuration: "Release",
+      output_directory: File.expand_path("../build/ipa", __dir__),
+      xcargs: "OTHER_CODE_SIGN_FLAGS='--keychain #{keychain}'",
+      export_team_id: team_id,
+      export_options: {
+        method: "app-store-connect",
+        signingStyle: "manual",
+        teamID: team_id,
+        signingCertificate: "Apple Distribution",
+        provisioningProfiles: profiles,
+      },
+    )
+  end
+
+  desc "Build, sign and export for the App Store without uploading (Signing check)"
+  lane :signed_build do
+    with_api_key { |api_key, _| archive(api_key: api_key) }
+  end
+
+  desc "Build, sign and upload to TestFlight"
+  lane :testflight_upload do
+    with_api_key do |api_key, _|
+      archive(api_key: api_key)
       upload_to_testflight(
         api_key: api_key,
         skip_waiting_for_build_processing: true,

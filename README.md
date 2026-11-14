@@ -128,8 +128,11 @@ During verification the app builds under Thorsten's own developer account as
 `de.iphoneblog.zulip.preview`. The team id comes from the repository variable
 `APPLE_TEAM_ID`; the secrets `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_P8_BASE64` (the
 same names as the Matrix app) live in the GitHub environment `apple`, which only `main` may
-use. The workflow `Apple setup` registers the bundle ids. The `testflight` job signs with Xcode's automatic signing,
-authorised by the API key, and uploads every build. `fastlane/Fastfile` holds both lanes.
+use. The workflow `Apple setup` registers the bundle ids. The `testflight` job signs manually with the team's one
+Apple Distribution certificate (environment secrets `DIST_CERT_P12_BASE64`,
+`DIST_CERT_PASSWORD`, shared with the Matrix app) and App Store profiles fetched through
+the API key, then uploads. The hand-started `Signing check` does the same without the
+upload. `fastlane/Fastfile` holds the lanes.
 
 ## When the weekly build fails
 
