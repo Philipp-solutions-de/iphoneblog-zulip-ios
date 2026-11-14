@@ -15,7 +15,10 @@ for runtime in sorted((r for r in devs if "iOS" in r), reverse=True):
             print(d["udid"]); sys.exit()
 sys.exit("no iPhone simulator found")')
 echo "simulator $udid"
-xcrun simctl boot "$udid" 2>/dev/null || true
+# A fresh device: no alert or state left from an earlier run.
+xcrun simctl shutdown "$udid" 2>/dev/null || true
+xcrun simctl erase "$udid"
+xcrun simctl boot "$udid"
 xcrun simctl bootstatus "$udid" -b
 xcrun simctl install "$udid" "$app"
 xcrun simctl launch "$udid" "$BUNDLE_ID"

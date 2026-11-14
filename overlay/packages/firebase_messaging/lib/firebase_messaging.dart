@@ -47,6 +47,11 @@ class FirebaseMessaging {
     bool provisional = false,
     bool sound = true,
   }) async {
+    // Screenshot builds (--dart-define=IPHONEBLOG_DENY_PUSH_PROMPT=true) act as if
+    // the user said no, so no system alert covers the screen.
+    if (const bool.fromEnvironment('IPHONEBLOG_DENY_PUSH_PROMPT')) {
+      return const NotificationSettings(authorizationStatus: AuthorizationStatus.denied);
+    }
     final status = switch (await IphoneblogNative.requestNotificationPermission()) {
       'authorized' => AuthorizationStatus.authorized,
       'denied' => AuthorizationStatus.denied,

@@ -72,7 +72,7 @@ jobs:
 
       - name: Build for the simulator
         working-directory: upstream
-        run: flutter build ios --simulator --debug --build-number=${{ github.run_number }}
+        run: flutter build ios --simulator --debug --dart-define=IPHONEBLOG_DENY_PUSH_PROMPT=true --build-number=${{ github.run_number }}
 
       - name: Launch in the simulator and take a screenshot
         run: scripts/simulator-smoke.sh upstream/build/ios/iphonesimulator/Runner.app screenshot.png

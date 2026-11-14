@@ -67,6 +67,20 @@ $'\ndependencies:\n  iphoneblog_native:  # iphoneblog\n    path: ./packages/ipho
 replace_once "$up/pubspec.yaml" $'\ndependency_overrides:\n' \
 $'\ndependency_overrides:\n  # iphoneblog: no Firebase; see packages/firebase_messaging.\n  firebase_core:\n    path: ./packages/firebase_core\n  firebase_messaging:\n    path: ./packages/firebase_messaging\n'
 
+say "push: encrypt the token to our relay's key, not Zulip's"
+python3 - "$up/lib/model/push_device.dart" "$RELAY_PUBLIC_KEY" <<'EOF2'
+import base64, re, sys
+path, key = sys.argv[1:3]
+if len(base64.b64decode(key, validate=True)) != 32:
+    sys.exit("prepare.sh: RELAY_PUBLIC_KEY is not 32 bytes of base64")
+s = open(path).read()
+s, n = re.subn(r"(static final bouncerPublicKey = base64Decode\()'[A-Za-z0-9+/=]+'(\);).*",
+               lambda m: f"{m.group(1)}'{key}'{m.group(2)} // iphoneblog: our relay", s)
+if n != 1:
+    sys.exit(f"prepare.sh: expected 1 bouncerPublicKey line in {path}, found {n}")
+open(path, 'w').write(s)
+EOF2
+
 say "ids: bundle id, team, app group"
 replace_all "$up/ios/Runner.xcodeproj/project.pbxproj" 'org.zulip.Zulip' "$BUNDLE_ID"
 python3 - "$up/ios/Flutter/Zulip.xcconfig" "$TEAM_ID" "$APP_GROUP" <<'EOF'

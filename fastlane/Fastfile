@@ -11,6 +11,9 @@ default_platform(:ios)
 
 platform :ios do
   lane :testflight_upload do
+    env = File.read(File.expand_path("../config/app.env", __dir__))
+    UI.user_error!("RELAY_PUBLIC_KEY in config/app.env is still the placeholder") if env.include?("RELAY_PUBLIC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+    UI.user_error!("TEAM_ID in config/app.env is still the placeholder") if env.include?("TEAM_ID=TEAMID0000")
     key_path = File.expand_path("asc_key.p8", __dir__)
     File.write(key_path, ENV.fetch("ASC_KEY_P8"))
 
