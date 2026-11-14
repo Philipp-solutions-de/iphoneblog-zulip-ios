@@ -26,6 +26,8 @@ jobs:
   build:
     runs-on: macos-26
     timeout-minutes: 90
+    env:
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
     outputs:
       upstream_tag: ${{ steps.upstream.outputs.UPSTREAM_TAG }}
     steps:
@@ -89,13 +91,15 @@ jobs:
 
   testflight:
     needs: build
-    if: vars.TESTFLIGHT_ENABLED == 'true' && github.event_name != 'push'
+    if: vars.TESTFLIGHT_ENABLED == 'true'
     runs-on: macos-26
     timeout-minutes: 90
     env:
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
       - name: Fetch the same upstream release
@@ -114,7 +118,7 @@ jobs:
       - name: Build, sign and upload to TestFlight
         run: |
           (cd upstream && flutter build ios --config-only --release --build-number=${{ github.run_number }})
-          bundle install --gemfile fastlane/Gemfile
+          BUNDLE_GEMFILE=fastlane/Gemfile bundle install
           BUNDLE_GEMFILE=fastlane/Gemfile bundle exec fastlane ios testflight_upload
 
   report-failure:

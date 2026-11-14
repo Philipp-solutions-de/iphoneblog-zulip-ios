@@ -1,47 +1,109 @@
-# TestFlight upload. Off until Alex's company developer account exists:
-# the workflow runs this lane only when the repository variable
-# TESTFLIGHT_ENABLED is "true". See README, "TestFlight".
+# TestFlight upload. Runs only when the repository variable TESTFLIGHT_ENABLED is
+# "true". docs/apple-setup.md lists what must exist first.
 #
-# Needs three repository secrets from an App Store Connect API key
-# (role App Manager): ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (the .p8 text).
-# Signing is Xcode's cloud-managed signing, authorised by the same key:
-# no certificates or profiles live in this repository.
+# Repository variable: APPLE_TEAM_ID       the 10-character team id
+# Repository secrets:  ASC_KEY_ID, ASC_ISSUER_ID   the App Store Connect API key's id and issuer
+#                      ASC_KEY_P8_BASE64           the .p8 file, base64-encoded
+# (the same names as Philipp-solutions-de/iphoneblog-matrix-ios)
+#
+# Signing is Xcode's automatic signing, authorised by the API key: Xcode registers the
+# two bundle ids and the app group, turns on Push Notifications and App Groups, makes
+# the profiles and uses a cloud-managed distribution certificate. No certificate or
+# profile lives in this repository.
+
+require "base64"
+require "tmpdir"
 
 default_platform(:ios)
 
+# Reads config/app.env (shell syntax) for BUNDLE_ID.
+def app_env
+  File.read(File.expand_path("../config/app.env", __dir__))
+      .scan(/^([A-Z_]+)="?([^"\n]*)"?$/).to_h
+end
+
+def with_api_key
+  key_path = File.join(Dir.tmpdir, "AuthKey_#{ENV.fetch('ASC_KEY_ID')}.p8")
+  File.write(key_path, Base64.decode64(ENV.fetch("ASC_KEY_P8_BASE64")))
+  api_key = app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_filepath: key_path,
+  )
+  yield api_key, key_path
+ensure
+  File.delete(key_path) if key_path && File.exist?(key_path)
+end
+
 platform :ios do
+  # Registers the app's and the notification extension's bundle ids and turns on
+  # Push Notifications and App Groups, through the App Store Connect API.
+  # Safe to run again: it skips what exists. The app group itself and the profiles
+  # are left to Xcode's automatic signing in testflight_upload.
+  lane :register_ids do
+    bundle_id = app_env.fetch("BUNDLE_ID")
+    name = app_env.fetch("APP_NAME")
+    with_api_key do
+      {
+        bundle_id => ["PUSH_NOTIFICATIONS", "APP_GROUPS"],
+        "#{bundle_id}.NotificationService" => ["APP_GROUPS"],
+      }.each do |identifier, capabilities|
+        bid = Spaceship::ConnectAPI::BundleId.find(identifier)
+        if bid
+          UI.message("#{identifier}: exists")
+        else
+          bid = Spaceship::ConnectAPI::BundleId.create(
+            name: "#{name} #{identifier.end_with?('NotificationService') ? 'Notifications' : 'App'}".gsub(/[^A-Za-z0-9 ]/, ""),
+            platform: Spaceship::ConnectAPI::BundleIdPlatform::IOS,
+            identifier: identifier,
+          )
+          UI.success("#{identifier}: registered")
+        end
+        have = bid.get_capabilities.map(&:capability_type)
+        capabilities.each do |cap|
+          if have.include?(cap)
+            UI.message("#{identifier}: #{cap} already on")
+          else
+            bid.create_capability(cap)
+            UI.success("#{identifier}: #{cap} turned on")
+          end
+        end
+      end
+    end
+  end
+
   lane :testflight_upload do
-    env = File.read(File.expand_path("../config/app.env", __dir__))
-    UI.user_error!("TEAM_ID in config/app.env is still the placeholder") if env.include?("TEAM_ID=TEAMID0000")
-    key_path = File.expand_path("asc_key.p8", __dir__)
-    File.write(key_path, ENV.fetch("ASC_KEY_P8"))
+    team_id = ENV.fetch("APPLE_TEAM_ID", "")
+    UI.user_error!("repository variable APPLE_TEAM_ID is not set") unless team_id.match?(/\A[A-Z0-9]{10}\z/)
 
-    api_key = app_store_connect_api_key(
-      key_id: ENV.fetch("ASC_KEY_ID"),
-      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
-      key_filepath: key_path,
-    )
-
-    build_app(
-      workspace: "upstream/ios/Runner.xcworkspace",
-      scheme: "Runner",
-      configuration: "Release",
-      export_method: "app-store",
-      output_directory: "build",
-      xcargs: [
+    with_api_key do |api_key, key_path|
+      auth = [
         "-allowProvisioningUpdates",
         "-authenticationKeyPath #{key_path}",
         "-authenticationKeyID #{ENV.fetch('ASC_KEY_ID')}",
         "-authenticationKeyIssuerID #{ENV.fetch('ASC_ISSUER_ID')}",
-      ].join(" "),
-      export_xcargs: "-allowProvisioningUpdates",
-    )
+      ].join(" ")
 
-    upload_to_testflight(
-      api_key: api_key,
-      skip_waiting_for_build_processing: true,
-    )
-  ensure
-    File.delete(key_path) if key_path && File.exist?(key_path)
+      build_app(
+        workspace: "upstream/ios/Runner.xcworkspace",
+        scheme: "Runner",
+        configuration: "Release",
+        output_directory: "build",
+        xcargs: "#{auth} DEVELOPMENT_TEAM=#{team_id} CODE_SIGN_STYLE=Automatic",
+        export_xcargs: auth,
+        export_team_id: team_id,
+        export_options: {
+          method: "app-store-connect",
+          signingStyle: "automatic",
+          teamID: team_id,
+        },
+      )
+
+      upload_to_testflight(
+        api_key: api_key,
+        skip_waiting_for_build_processing: true,
+        changelog: "Build #{ENV.fetch('BUILD_NUMBER', '?')} from #{ENV.fetch('GITHUB_SHA', 'local')[0, 7]}.",
+      )
+    end
   end
 end

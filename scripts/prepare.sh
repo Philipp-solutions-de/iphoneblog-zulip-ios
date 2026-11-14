@@ -12,6 +12,7 @@ here="$(cd "$(dirname "$0")/.." && pwd)"
 up="$(cd "${1:?usage: prepare.sh <upstream-checkout>}" && pwd)"
 # shellcheck source=../config/app.env
 source "$here/config/app.env"
+TEAM_ID="${APPLE_TEAM_ID:-$TEAM_ID}"
 
 say() { printf '== %s\n' "$*"; }
 die() { printf 'prepare.sh: %s\n' "$*" >&2; exit 1; }

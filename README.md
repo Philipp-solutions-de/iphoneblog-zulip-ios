@@ -45,7 +45,7 @@ It needs Xcode and CocoaPods.
 
 | Where | What | Why |
 |---|---|---|
-| `config/app.env` | name, bundle id, team id, app group, server, blog colour | the one place to change for Alex's account |
+| `config/app.env` | name, bundle id, app group, server, blog colour (team id: variable `APPLE_TEAM_ID`) | the one place to change for Alex's account |
 | `brand/icon-1024.png` | the blog's touch icon with a "Z" badge, on white | no Zulip marks; tells it apart from the Matrix app |
 | `patches/0001-brand-colour.patch` | the app's seed colour becomes the blog's teal `#149791` | blog colours |
 | `patches/0002-start-on-sign-in.patch` | with no account, the app opens on sign-in, not the account list | one less screen |
@@ -99,18 +99,15 @@ The session keeps Safari's cookies, so a second sign-in through iphoneblog.de is
 
 ## TestFlight
 
-Off until Alex's company developer account exists. Then:
+Off until the Apple steps are done. [docs/apple-setup.md](docs/apple-setup.md) lists them in
+order: API key and secrets, bundle ids (workflow `apple-ids`), app record, APNs key,
+switching on, testers.
 
-1. In `config/app.env`, set `TEAM_ID` to the account's team id, and `BUNDLE_ID` and
-   `APP_GROUP` if the final names differ.
-2. In App Store Connect: create the app record for `BUNDLE_ID`, register the app group,
-   and create an API key with the role App Manager.
-3. In this repository's settings: secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (the
-   text of the `.p8` file), and the variable `TESTFLIGHT_ENABLED` = `true`.
-4. For server push: an APNs key (`.p8`) from the same account goes to the Zulip server.
-
-The `testflight` job then signs with Xcode's cloud-managed signing and uploads every weekly
-build. `fastlane/Fastfile` holds the lane.
+During verification the app builds under Thorsten's own developer account as
+`de.iphoneblog.zulip.preview`. The team id comes from the repository variable
+`APPLE_TEAM_ID`; the secrets are `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_P8_BASE64`, the
+same names as the Matrix app. The `testflight` job signs with Xcode's automatic signing,
+authorised by the API key, and uploads every build. `fastlane/Fastfile` holds both lanes.
 
 ## When the weekly build fails
 
