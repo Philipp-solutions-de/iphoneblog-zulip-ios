@@ -1,0 +1,40 @@
+name: report-failure
+
+# Reusable: open an issue labelled build-failure, or comment on the open one.
+
+on:
+  workflow_call:
+    inputs:
+      what:
+        type: string
+        required: true
+      upstream_tag:
+        type: string
+        default: ''
+
+permissions:
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update the build-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WHAT: ${{ inputs.what }}
+          TAG: ${{ inputs.upstream_tag }}
+        run: |
+          set -euo pipefail
+          body="$WHAT failed (zulip-flutter ${TAG:-unknown}): $RUN_URL
+
+          See README, \"When the weekly build fails\"."
+          open=$(gh issue list --label build-failure --state open --json number --jq '.[0].number')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh label create build-failure --color B60205 --force >/dev/null
+            gh issue create --title "Build failed (${TAG:-unknown})" --label build-failure --body "$body"
+          fi

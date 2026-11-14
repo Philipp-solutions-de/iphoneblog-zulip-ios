@@ -1,0 +1,94 @@
+name: upstream-bump
+
+# Weekly: if zulip-flutter has a release newer than the one pinned in config/app.env,
+# build it WITHOUT secrets. When that build is green, push a branch that pins the new
+# release and open a pull request. The Apple key reaches the new code only after
+# someone merges it into main. A red build opens an issue.
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'   # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      newest: ${{ steps.check.outputs.newest }}
+      pinned: ${{ steps.check.outputs.pinned }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source config/app.env
+          newest=$(gh api repos/zulip/zulip-flutter/releases/latest --jq .tag_name)
+          [[ "$newest" =~ ^v[0-9.]+$ ]]
+          echo "pinned $UPSTREAM_REF, newest $newest"
+          echo "pinned=$UPSTREAM_REF" >> "$GITHUB_OUTPUT"
+          echo "newest=$newest" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check
+    if: needs.check.outputs.newest != needs.check.outputs.pinned
+    uses: ./.github/workflows/build-app.yml
+    with:
+      upstream_tag: ${{ needs.check.outputs.newest }}
+
+  pull-request:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Pin the new release on a branch and open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.upstream_tag }}
+          COMMIT: ${{ needs.build.outputs.upstream_commit }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9.]+$ && "$COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          branch="upstream/$TAG"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "branch $branch exists already"; exit 0
+          fi
+          sed -i -E "s/^UPSTREAM_REF=.*/UPSTREAM_REF=$TAG/; s/^UPSTREAM_COMMIT=.*/UPSTREAM_COMMIT=$COMMIT/" config/app.env
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -q -m "Build from zulip-flutter $TAG" -- config/app.env
+          git push -q origin "$branch"
+          body="zulip-flutter $TAG ($COMMIT) built green without secrets: $RUN_URL
+
+          Merging gives this release to the TestFlight job. Read upstream's changes first:
+          https://github.com/zulip/zulip-flutter/releases/tag/$TAG"
+          if ! gh pr create --head "$branch" --title "Build from zulip-flutter $TAG" --body "$body"; then
+            gh issue create --title "zulip-flutter $TAG is ready to merge" \
+              --body "$body
+
+          Pull request: https://github.com/$GITHUB_REPOSITORY/compare/main...$branch"
+          fi
+
+  report-failure:
+    needs: [check, build, pull-request]
+    if: failure()
+    uses: ./.github/workflows/report-failure.yml
+    permissions:
+      issues: write
+    with:
+      what: "The weekly build of the newest upstream release"
+      upstream_tag: ${{ needs.check.outputs.newest }}

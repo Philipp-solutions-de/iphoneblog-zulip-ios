@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   register:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     runs-on: macos-26
     timeout-minutes: 20
     environment: apple
@@ -22,6 +22,7 @@ jobs:
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
       BUNDLE_GEMFILE: fastlane/Gemfile
+      BUNDLE_FROZEN: 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

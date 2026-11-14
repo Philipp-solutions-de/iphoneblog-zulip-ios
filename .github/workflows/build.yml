@@ -1,24 +1,20 @@
 name: build
 
-# Weekly: take the newest zulip-flutter release, apply our changes, build.
-# A red run opens an issue. TestFlight upload stays off until the
-# repository variable TESTFLIGHT_ENABLED is "true" (see docs/apple-setup.md).
+# Builds the zulip-flutter release pinned in config/app.env, on every push to main.
+# When the repository variable TESTFLIGHT_ENABLED is "true", the same pinned release
+# goes to TestFlight (docs/apple-setup.md).
 #
 # Security: the Apple secrets live only in the GitHub environment "apple", which
-# accepts deployments from main alone. Only the testflight job binds it, and only on
-# main. No pull_request_target, no secrets for forks or other branches. Every
-# third-party action is pinned by commit, fastlane and its gems by Gemfile.lock.
+# accepts main alone, and only the testflight job binds it, on a push to main or a
+# manual run on main. Code that is not on main never sees them: newer upstream
+# releases are built without secrets by "upstream-bump" and arrive by pull request.
+# No pull_request_target. Actions pinned by commit, fastlane by Gemfile.lock. The
+# secret job installs Flutter fresh, without the shared cache.
 
 on:
-  schedule:
-    - cron: '17 5 * * 1'   # Mondays 05:17 UTC
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      upstream_tag:
-        description: 'zulip-flutter tag (empty: newest release)'
-        required: false
 
 permissions:
   contents: read
@@ -33,79 +29,13 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-26
-    timeout-minutes: 90
-    env:
-      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
-    outputs:
-      upstream_tag: ${{ steps.upstream.outputs.UPSTREAM_TAG }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Fetch upstream release
-        id: upstream
-        env:
-          WANTED_TAG: ${{ inputs.upstream_tag }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          scripts/fetch-upstream.sh upstream "$WANTED_TAG" | tee -a "$GITHUB_ENV" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Flutter at upstream's commit
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/flutter
-          key: flutter-${{ env.FLUTTER_SHA }}-${{ runner.os }}-${{ runner.arch }}
-
-      - name: Install Flutter
-        run: |
-          if [ ! -x ~/flutter/bin/flutter ]; then
-            git init -q ~/flutter
-            git -C ~/flutter fetch -q --depth 1 https://github.com/flutter/flutter.git "$FLUTTER_SHA"
-            git -C ~/flutter checkout -q FETCH_HEAD
-            # flutter --version reads the channel from a branch name.
-            git -C ~/flutter checkout -q -b main
-          fi
-          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
-
-      - name: Flutter and Xcode versions
-        run: |
-          flutter config --no-analytics --no-cli-animations
-          flutter --version
-          xcodebuild -version
-          flutter precache --ios
-
-      - name: Apply iphoneblog changes
-        run: scripts/prepare.sh upstream
-
-      - name: Build for device (unsigned)
-        working-directory: upstream
-        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
-
-      - name: Check that no Firebase or Google code shipped
-        run: scripts/check-no-google.sh upstream upstream/build/ios/iphoneos/Runner.app
-
-      - name: Build for the simulator
-        working-directory: upstream
-        run: flutter build ios --simulator --debug --dart-define=IPHONEBLOG_DENY_PUSH_PROMPT=true --build-number=${{ github.run_number }}
-
-      - name: Launch in the simulator and take a screenshot
-        run: scripts/simulator-smoke.sh upstream/build/ios/iphonesimulator/Runner.app screenshot.png
-
-      - name: Upload simulator app and screenshot
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: iphoneblog-z-${{ env.UPSTREAM_TAG }}-simulator
-          path: |
-            upstream/build/ios/iphonesimulator/Runner.app
-            screenshot.png
-          if-no-files-found: ignore
+    uses: ./.github/workflows/build-app.yml
 
   testflight:
     needs: build
-    if: vars.TESTFLIGHT_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    if: >-
+      vars.TESTFLIGHT_ENABLED == 'true' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: macos-26
     timeout-minutes: 90
     environment: apple
@@ -115,59 +45,33 @@ jobs:
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
       BUILD_NUMBER: ${{ github.run_number }}
+      BUNDLE_GEMFILE: fastlane/Gemfile
+      BUNDLE_FROZEN: 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Fetch the same upstream release
-        env:
-          WANTED_TAG: ${{ needs.build.outputs.upstream_tag }}
-        run: scripts/fetch-upstream.sh upstream "$WANTED_TAG" >> "$GITHUB_ENV"
+      - name: Fetch the pinned upstream release
+        run: scripts/fetch-upstream.sh upstream >> "$GITHUB_ENV"
       - name: Install Flutter
-        run: |
-          git init -q ~/flutter
-          git -C ~/flutter fetch -q --depth 1 https://github.com/flutter/flutter.git "$FLUTTER_SHA"
-          git -C ~/flutter checkout -q FETCH_HEAD
-          git -C ~/flutter checkout -q -b main
-          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+        run: scripts/install-flutter.sh
       - name: Apply iphoneblog changes
-        run: |
-          flutter precache --ios
-          scripts/prepare.sh upstream
+        run: scripts/prepare.sh upstream
       - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
-        env:
-          BUNDLE_GEMFILE: fastlane/Gemfile
         with:
           ruby-version: '4.0'
           bundler-cache: true
       - name: Build, sign and upload to TestFlight
-        env:
-          BUNDLE_GEMFILE: fastlane/Gemfile
         run: |
           (cd upstream && flutter build ios --config-only --release --build-number="$BUILD_NUMBER")
           bundle exec fastlane ios testflight_upload
 
   report-failure:
     needs: [build, testflight]
-    if: failure() && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    if: failure()
+    uses: ./.github/workflows/report-failure.yml
     permissions:
       issues: write
-    steps:
-      - name: Open or update the build-failure issue
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          TAG: ${{ needs.build.outputs.upstream_tag }}
-        run: |
-          body="The build failed for zulip-flutter ${TAG:-(unknown tag)}: $RUN_URL
-
-          Most often a patch no longer applies or upstream uses a Firebase name the stand-in lacks. See README, \"When the weekly build fails\"."
-          open=$(gh issue list --label build-failure --state open --json number --jq '.[0].number')
-          if [ -n "$open" ]; then
-            gh issue comment "$open" --body "$body"
-          else
-            gh label create build-failure --color B60205 --force >/dev/null
-            gh issue create --title "Weekly build failed (${TAG:-unknown})" --label build-failure --body "$body"
-          fi
+    with:
+      what: "The build of the pinned release"
+      upstream_tag: ${{ needs.build.outputs.upstream_tag }}

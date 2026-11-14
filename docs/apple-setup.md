@@ -61,8 +61,9 @@ as the combined page describes.
 ## Push for the Zulip server
 
 The APNs key is the one Team Scoped key from the combined page; the Zulip server uses it
-with the topic above. It goes into infra's secrets under `zulip_apns_key`,
-`zulip_apns_key_id` and `zulip_apns_team_id`, the names the Zulip server role reads.
+with the topic above. The combined page's command block writes the same `.p8` into infra's
+secrets twice: `zulip_apns_key`, `zulip_apns_key_id`, `zulip_apns_team_id` for the Zulip
+server, and the `sygnal_apns_*` names for Matrix.
 
 ## Switch TestFlight on
 
@@ -70,5 +71,7 @@ with the topic above. It goes into infra's secrets under `zulip_apns_key`,
 gh variable set TESTFLIGHT_ENABLED --repo Philipp-solutions-de/iphoneblog-zulip-ios --body true
 ```
 
-From then on every build on `main`, and the weekly one, goes to TestFlight. Add the internal
+From then on every push to `main` builds the pinned zulip-flutter release and uploads it.
+Newer upstream releases arrive as pull requests from the weekly `upstream-bump` workflow,
+built without secrets; they reach TestFlight once merged. Add the internal
 tester group on the app record as the combined page describes.

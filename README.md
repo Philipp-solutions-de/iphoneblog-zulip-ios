@@ -13,33 +13,55 @@ At launch the server becomes `chat.iphoneblog.de` (`SERVER_URL` in `config/app.e
 
 ## How a new upstream release becomes an app
 
-1. Every Monday the workflow `build` asks GitHub for the newest zulip-flutter release.
-2. `scripts/fetch-upstream.sh` clones that tag and the Flutter commit named in its
-   `pubspec.yaml`, the one upstream tested with.
-3. `scripts/prepare.sh` copies `overlay/` in, applies `patches/`, and rewrites names, ids,
-   icon and colour from `config/app.env`. Every step checks that it found what it changes.
-4. The workflow builds for a device (unsigned) and for the simulator, checks that no
-   Firebase or Google code shipped, launches the app on a freshly erased simulator and
-   keeps a screenshot with the run. The simulator build carries
-   `--dart-define=IPHONEBLOG_DENY_PUSH_PROMPT=true`: it acts as if the user declined
-   notifications, so no system alert covers the screenshot. Device builds ask as usual.
-5. A red run opens an issue labelled `build-failure`, or comments on the open one.
+The app is always built from the zulip-flutter release pinned in `config/app.env`
+(`UPSTREAM_REF` and its commit `UPSTREAM_COMMIT`). Only that pinned code reaches the Apple
+key.
 
-Nobody edits upstream code by hand. A release that breaks a patch fails the build, and the
-fix is a change to a patch in this repository.
+1. Every Monday the workflow `upstream-bump` asks GitHub for the newest zulip-flutter
+   release. If it is newer than the pinned one, it builds it without any secrets.
+2. Green: it pushes a branch `upstream/<tag>` that pins the new release and opens a pull
+   request (or, where Actions may not open one, an issue with the link). Someone reads
+   upstream's changes and merges.
+3. The merge is a push to `main`. The workflow `build` builds the pinned release and, once
+   TestFlight is switched on, uploads it.
+4. Red: an issue labelled `build-failure` opens, or the open one gets a comment.
+
+Every build runs the same steps (workflow `build-app`):
+
+- `scripts/fetch-upstream.sh` clones the release, checks the pinned commit, and reads the
+  Flutter commit named in its `pubspec.yaml`, the one upstream tested with.
+- `scripts/install-flutter.sh` installs exactly that Flutter commit.
+- `scripts/prepare.sh` copies `overlay/` in, applies `patches/`, and rewrites names, ids,
+  icon and colour from `config/app.env`. Every step checks that it found what it changes.
+- The build for a device (unsigned) and for the simulator; `scripts/check-no-google.sh`
+  fails if Firebase or Google code shipped; `scripts/simulator-smoke.sh` launches the app
+  on a freshly erased simulator and keeps a screenshot with the run. The simulator build
+  carries `--dart-define=IPHONEBLOG_DENY_PUSH_PROMPT=true`: it acts as if the user declined
+  notifications, so no system alert covers the screenshot. Device builds ask as usual.
+
+Nobody edits upstream code by hand. A release that breaks a patch fails the bump build, and
+the fix is a change to a patch in this repository, on the bump branch.
+
+### Security
+
+The Apple secrets live in the GitHub environment `apple`, which only `main` may use. Only
+the `testflight` job of `build` and the hand-started `Apple setup` bind it, and only for a
+push or a manual run on `main`. No workflow uses `pull_request_target`. Third-party actions
+are pinned by commit, fastlane and its gems by `fastlane/Gemfile.lock` (`BUNDLE_FROZEN`).
+The secret job installs Flutter fresh, not from the shared cache.
 
 Run the same on a Mac:
 
 ```bash
 eval "$(scripts/fetch-upstream.sh upstream)"
-git clone https://github.com/flutter/flutter.git ~/flutter-zulip && git -C ~/flutter-zulip checkout "$FLUTTER_SHA"
-export PATH=~/flutter-zulip/bin:$PATH
+scripts/install-flutter.sh
+export PATH=~/flutter/bin:$PATH
 scripts/prepare.sh upstream
 (cd upstream && flutter build ios --simulator --debug --dart-define=IPHONEBLOG_DENY_PUSH_PROMPT=true)
 scripts/simulator-smoke.sh upstream/build/ios/iphonesimulator/Runner.app screenshot.png
 ```
 
-It needs Xcode and CocoaPods.
+It needs Xcode and CocoaPods, and installs Flutter into `~/flutter`.
 
 ## What is changed
 
@@ -114,7 +136,7 @@ authorised by the API key, and uploads every build. `fastlane/Fastfile` holds bo
 Read the run's log. The usual causes:
 
 - A patch no longer applies: rebase it on the new tag (`git apply --3way`), commit the new
-  patch.
+  patch together with the new `UPSTREAM_REF` and `UPSTREAM_COMMIT`.
 - `prepare.sh` reports "expected 1 match": upstream moved a line it rewrites. Adjust the
   script.
 - A Dart error naming a Firebase class: upstream uses a Firebase name the stand-in lacks.
