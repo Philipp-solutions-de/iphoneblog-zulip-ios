@@ -1,0 +1,8 @@
+iphoneblog Z
+Copyright 2026 Philipp Solutions
+
+This product builds on zulip-flutter (https://github.com/zulip/zulip-flutter),
+Copyright Kandra Labs, Inc. and contributors, licensed under the Apache License 2.0.
+The files in patches/ modify zulip-flutter source files.
+
+Zulip is a trademark of Kandra Labs, Inc. This app is not made or endorsed by Kandra Labs.

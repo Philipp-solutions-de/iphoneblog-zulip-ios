@@ -1,0 +1,71 @@
+diff --git a/lib/widgets/login.dart b/lib/widgets/login.dart
+index 5a21db80..dd0d9c25 100644
+--- a/lib/widgets/login.dart
++++ b/lib/widgets/login.dart
+@@ -2,6 +2,7 @@ import 'dart:async';
+ 
+ import 'package:flutter/foundation.dart';
+ import 'package:flutter/services.dart';
++import 'package:iphoneblog_native/iphoneblog_native.dart'; // iphoneblog
+ import 'package:material_ui/material_ui.dart';
+ import 'package:url_launcher/url_launcher.dart';
+ 
+@@ -11,6 +12,7 @@ import '../api/model/web_auth.dart';
+ import '../api/route/account.dart';
+ import '../api/route/realm.dart';
+ import '../generated/l10n/zulip_localizations.dart';
++import '../iphoneblog/config.g.dart'; // iphoneblog
+ import '../log.dart';
+ import '../model/binding.dart';
+ import '../model/server_support.dart';
+@@ -152,8 +154,15 @@ class _AddAccountPageState extends State<AddAccountPage> {
+   @override
+   void initState() {
+     super.initState();
++    // iphoneblog: the server is preset; connect at once.
++    _controller.text = kIphoneblogServerUrl;
+     _parseResult = _controller.tryParse();
+     _controller.addListener(_serverUrlChanged);
++    if (kIphoneblogServerUrl.isNotEmpty) {
++      WidgetsBinding.instance.addPostFrameCallback((_) {
++        if (mounted) _onSubmitted(context);
++      });
++    }
+   }
+ 
+   @override
+@@ -244,7 +253,10 @@ class _AddAccountPageState extends State<AddAccountPage> {
+             constraints: const BoxConstraints(maxWidth: 400),
+             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+               // TODO(#111) Perhaps give tappable realm URL suggestions based on text typed so far
+-              TextField(
++              // iphoneblog: show the preset server instead of the input.
++              if (kIphoneblogServerUrl.isNotEmpty)
++                Text(kIphoneblogServerUrl, style: filledInputTextStyle(designVariables)),
++              if (kIphoneblogServerUrl.isEmpty) TextField(
+                 controller: _controller,
+                 onSubmitted: (value) => _onSubmitted(context),
+                 keyboardType: TextInputType.url,
+@@ -371,6 +383,22 @@ class _LoginPageState extends State<LoginPage> {
+       // attempt is aborted (by the user closing the browser, for example),
+       // and I don't think we can reliably know when that happens.
+ 
++      // iphoneblog: on iOS, sign in inside an ASWebAuthenticationSession.
++      // It hands the zulip://login address straight back to this app,
++      // so the app registers no URL scheme and no other app can catch it.
++      if (defaultTargetPlatform == TargetPlatform.iOS) {
++        final Uri callback;
++        try {
++          callback = await IphoneblogNative.webAuth(url,
++            callbackScheme: kIphoneblogAuthCallbackScheme);
++        } on PlatformException catch (e) {
++          if (e.code == 'canceled') return;
++          rethrow;
++        }
++        await handleWebAuthUrl(callback);
++        return;
++      }
++
+       // Not using [PlatformActions.launchUrl] because web auth needs special
+       // error handling.
+       await ZulipBinding.instance.launchUrl(url, mode: LaunchMode.inAppBrowserView);

@@ -1,0 +1,21 @@
+diff --git a/lib/widgets/theme.dart b/lib/widgets/theme.dart
+index 4d8469bb..97852b77 100644
+--- a/lib/widgets/theme.dart
++++ b/lib/widgets/theme.dart
+@@ -1,6 +1,7 @@
+ import 'package:material_ui/material_ui.dart';
+ 
+ import '../api/model/model.dart';
++import '../iphoneblog/config.g.dart'; // iphoneblog
+ import '../model/settings.dart';
+ import 'compose_box.dart';
+ import 'content.dart';
+@@ -131,7 +132,7 @@ ThemeData zulipThemeData(BuildContext context) {
+ ///
+ /// This is chosen as the sRGB midpoint of the Zulip logo's gradient.
+ // As computed by Anders: https://github.com/zulip/zulip-mobile/pull/4467
+-const kZulipBrandColor = Color.fromRGBO(0x64, 0x92, 0xfe, 1);
++const kZulipBrandColor = kIphoneblogBrandColor; // iphoneblog
+ 
+ /// Design variables, mainly from the Figma design.
+ ///

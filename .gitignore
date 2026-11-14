@@ -1,0 +1,4 @@
+upstream/
+build/
+*.p8
+screenshot.png

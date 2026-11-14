@@ -1,0 +1,15 @@
+name: firebase_messaging
+description: "Stand-in for firebase_messaging in the iphoneblog build. Gets the APNs token from iOS directly."
+version: 99.0.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core:
+    path: ../firebase_core
+  iphoneblog_native:
+    path: ../iphoneblog_native

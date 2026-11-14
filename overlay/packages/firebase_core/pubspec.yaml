@@ -1,0 +1,11 @@
+name: firebase_core
+description: "Stand-in for firebase_core in the iphoneblog build. Contains no Firebase code."
+version: 99.0.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter

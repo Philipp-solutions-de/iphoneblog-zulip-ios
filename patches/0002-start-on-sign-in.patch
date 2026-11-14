@@ -1,0 +1,14 @@
+diff --git a/lib/widgets/app.dart b/lib/widgets/app.dart
+index 0b070414..080c9c8b 100644
+--- a/lib/widgets/app.dart
++++ b/lib/widgets/app.dart
+@@ -215,7 +215,8 @@ class _ZulipAppState extends State<ZulipApp> with WidgetsBindingObserver {
+     return [
+       if (lastVisitedAccountId == null)
+         // There are no accounts, or the last-visited account was logged out.
+-        MaterialWidgetRoute(page: const ChooseAccountPage())
++        // iphoneblog: straight to sign-in on the preset server.
++        AddAccountPage.buildRoute()
+       else
+         HomePage.buildRoute(accountId: lastVisitedAccountId),
+     ];
