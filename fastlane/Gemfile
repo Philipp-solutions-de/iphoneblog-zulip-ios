@@ -1,2 +1,4 @@
 source "https://rubygems.org"
-gem "fastlane", "~> 2.228"
+
+# Pinned; Gemfile.lock pins every dependency. Update with: bundle update --gemfile fastlane/Gemfile
+gem "fastlane", "2.241.2"

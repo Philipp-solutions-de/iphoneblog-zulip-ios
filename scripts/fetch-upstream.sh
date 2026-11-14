@@ -12,9 +12,11 @@ source "$here/config/app.env"
 dir="${1:?usage: fetch-upstream.sh <dir> [tag]}"
 tag="${2:-${UPSTREAM_REF:-}}"
 if [[ -z "$tag" ]]; then
-  tag=$(curl -fsSL https://api.github.com/repos/zulip/zulip-flutter/releases/latest \
-    | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
+  # Authenticated through gh (GH_TOKEN in CI): GitHub refuses anonymous API calls from
+  # shared runner addresses.
+  tag=$(gh api repos/zulip/zulip-flutter/releases/latest --jq .tag_name)
 fi
+[[ "$tag" =~ ^v[0-9.]+$ ]] || { echo "fetch-upstream.sh: unexpected tag '$tag'" >&2; exit 1; }
 git clone -q --depth 1 --branch "$tag" https://github.com/zulip/zulip-flutter.git "$dir" >&2
 # pubspec.yaml names the Flutter commit upstream tested with, as a comment:
 #   flutter: '>=3.50.0-1.0.pre-219'  # a29b620b741a1f1a5a0e371c87a59d06f4984865

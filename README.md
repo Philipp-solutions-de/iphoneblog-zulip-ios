@@ -99,14 +99,14 @@ The session keeps Safari's cookies, so a second sign-in through iphoneblog.de is
 
 ## TestFlight
 
-Off until the Apple steps are done. [docs/apple-setup.md](docs/apple-setup.md) lists them in
-order: API key and secrets, bundle ids (workflow `apple-ids`), app record, APNs key,
-switching on, testers.
+Off until the Apple steps are done. [docs/apple-setup.md](docs/apple-setup.md) has this app's
+values and commands; the checklist for both apps lives in the Matrix app's repository.
 
 During verification the app builds under Thorsten's own developer account as
 `de.iphoneblog.zulip.preview`. The team id comes from the repository variable
-`APPLE_TEAM_ID`; the secrets are `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_P8_BASE64`, the
-same names as the Matrix app. The `testflight` job signs with Xcode's automatic signing,
+`APPLE_TEAM_ID`; the secrets `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_P8_BASE64` (the
+same names as the Matrix app) live in the GitHub environment `apple`, which only `main` may
+use. The workflow `Apple setup` registers the bundle ids. The `testflight` job signs with Xcode's automatic signing,
 authorised by the API key, and uploads every build. `fastlane/Fastfile` holds both lanes.
 
 ## When the weekly build fails

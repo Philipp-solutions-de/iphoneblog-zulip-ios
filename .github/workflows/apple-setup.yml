@@ -1,0 +1,34 @@
+name: Apple setup
+
+# Started by hand (docs/apple-setup.md): registers the app's two bundle ids in the
+# Apple team and turns on Push Notifications and App Groups, through the App Store
+# Connect API key. Safe to run again.
+# The secrets come from the environment "apple", which only main may use.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  register:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    timeout-minutes: 20
+    environment: apple
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      BUNDLE_GEMFILE: fastlane/Gemfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      - name: Register bundle ids and capabilities
+        run: bundle exec fastlane ios register_ids
