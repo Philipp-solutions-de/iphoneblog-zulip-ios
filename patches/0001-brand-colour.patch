@@ -1,16 +1,40 @@
 diff --git a/lib/widgets/theme.dart b/lib/widgets/theme.dart
-index 4d8469bb..97852b77 100644
+index 4d8469bb..273adda7 100644
 --- a/lib/widgets/theme.dart
 +++ b/lib/widgets/theme.dart
-@@ -1,6 +1,7 @@
+@@ -1,6 +1,8 @@
  import 'package:material_ui/material_ui.dart';
  
  import '../api/model/model.dart';
 +import '../iphoneblog/config.g.dart'; // iphoneblog
++import '../iphoneblog/theme.dart'; // iphoneblog
  import '../model/settings.dart';
  import 'compose_box.dart';
  import 'content.dart';
-@@ -131,7 +132,7 @@ ThemeData zulipThemeData(BuildContext context) {
+@@ -30,11 +32,11 @@ ThemeData zulipThemeData(BuildContext context) {
+   //   https://m3.material.io/theme-builder#/custom
+   final colorScheme = ColorScheme.fromSeed(
+     brightness: brightness,
+-    seedColor: kZulipBrandColor);
++    seedColor: iphoneblogSeedColor(brightness)); // iphoneblog
+ 
+   switch (brightness) {
+     case Brightness.light: {
+-      designVariables = DesignVariables.light;
++      designVariables = iphoneblogDesignVariables(DesignVariables.light, brightness); // iphoneblog
+       themeExtensions = [
+         ContentTheme.light(context),
+         designVariables,
+@@ -44,7 +46,7 @@ ThemeData zulipThemeData(BuildContext context) {
+       ];
+     }
+     case Brightness.dark: {
+-      designVariables = DesignVariables.dark;
++      designVariables = iphoneblogDesignVariables(DesignVariables.dark, brightness); // iphoneblog
+       themeExtensions = [
+         ContentTheme.dark(context),
+         designVariables,
+@@ -131,7 +133,7 @@ ThemeData zulipThemeData(BuildContext context) {
  ///
  /// This is chosen as the sRGB midpoint of the Zulip logo's gradient.
  // As computed by Anders: https://github.com/zulip/zulip-mobile/pull/4467

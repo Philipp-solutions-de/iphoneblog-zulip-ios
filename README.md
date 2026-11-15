@@ -69,7 +69,7 @@ It needs Xcode and CocoaPods, and installs Flutter into `~/flutter`.
 |---|---|---|
 | `config/app.env` | name, bundle id, app group, server, blog colour (team id: variable `APPLE_TEAM_ID`) | the one place to change for Alex's account |
 | `brand/icon-1024.png` | the blog's touch icon, on white | no Zulip marks |
-| `patches/0001-brand-colour.patch` | the app's seed colour becomes the blog's teal `#149791` | blog colours |
+| `patches/0001-brand-colour.patch` + `overlay/lib/iphoneblog/theme.dart` | the blog's colours over upstream's, in light and dark mode: teal `#149791` / `#2c9e94` for icons, buttons, links; dark background `#111` and message text `#aeaeae` | blog colours; the app follows the system's dark mode |
 | `patches/0002-start-on-sign-in.patch` | with no account, the app opens on sign-in, not the account list | one less screen |
 | `patches/0003-preset-server-and-sign-in-sheet.patch` | the server is preset and the URL field hidden; on iOS, web sign-in runs in an `ASWebAuthenticationSession` | sign-in goes straight to the iphoneblog.de button; see "Sign-in" |
 | `patches/0004-legacy-push-registration.patch` | push registers through the legacy path (`add-apns-token`), never the encrypted one | a stock server sends to Apple with our key; see "Push" |
