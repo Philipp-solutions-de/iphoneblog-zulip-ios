@@ -1,6 +1,6 @@
 # iphoneblog Zulip
 
-**Archived 2026-11-15: iphoneblog.de chose Matrix; this Zulip app is no longer built or shipped.**
+**Archived 2026-11-15: iphoneblog.de dropped Zulip; this app is no longer built or shipped.**
 
 The iPhone app for the iphoneblog.de chat on Zulip. It is
 [zulip-flutter](https://github.com/zulip/zulip-flutter), the official Zulip app, with a
